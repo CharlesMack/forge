@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>FrameForge — Cinematic Webcam Studio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        /* [Previous CSS unchanged, included for completeness] */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            background: #0a0a0a; 
+            color: #e0f7fa; 
+            font: 500 14px/1.5 system-ui, -apple-system, sans-serif; 
+            height: 100vh; 
+            display: grid; 
+            place-items: center; 
+            overflow: hidden;
+        }
+        #studio {
+            width: min(95vw, 1400px);
+            height: min(92vh, 800px);
+            border: 2px solid #40c4ff55;
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(10, 10, 10, .8), rgba(5, 5, 5, .6));
+            backdrop-filter: blur(8px);
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 12px;
+            padding: 14px;
+            position: relative;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .group {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .chip {
+            border: 1px solid #1e4a5a;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #0c1b24, #09141c);
+            padding: 8px 12px;
+            color: #b3e5fc;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        select, input[type="range"], button, input[type="file"] {
+            background: #07141e;
+            color: #e0f7fa;
+            border: 1px solid #1a3c4e;
+            border-radius: 10px;
+            padding: 7px 12px;
+            font-size: 1rem;
+            appearance: none;
+        }
+        input[type="range"] { width: 150px; }
+        #view {
+            position: relative;
+            border: 1px solid #12303e;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        .guides {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+        .gate {
+            position: absolute;
+            left: 0;
+            right: 0;
+            margin: auto;
+            border: 2px dashed rgba(64, 196, 255, .5);
+            pointer-events: none;
+        }
+        .overlays {
+            position: absolute;
+            left: 12px;
+            bottom: 12px;
+            display: flex;
+            gap: 12px;
+            pointer-events: none;
+        }
+        .scope {
+            width: 220px;
+            height: 130px;
+            border: 1px solid #204a5e;
+            border-radius: 10px;
+            background: rgba(5, 15, 20, .75);
+            backdrop-filter: blur(5px);
+            pointer-events: auto;
+        }
+        .scope canvas { width: 100%; height: 100%; }
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        #record {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 4px solid #ffffffbb;
+            background: #ff5252;
+            cursor: pointer;
+            transition: transform .2s;
+        }
+        #record.recording {
+            background: #d81b60;
+            transform: scale(1.08);
+            animation: pulse 1.2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 82, 82, .8); }
+            70% { box-shadow: 0 0 0 16px rgba(255, 82, 82, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0); }
+        }
+        .hint { opacity: .7; font-size: .95rem; }
+        .btn { cursor: pointer; }
+        .right { display: flex; gap: 12px; align-items: center; }
+        .kbd {
+            padding: 3px 8px;
+            border: 1px solid #2e4b5e;
+            border-radius: 8px;
+            background: #0b1822;
+            color: #b3e5fc;
+            font-size: .9rem;
+        }
+        .chk { accent-color: #40c4ff; }
+        #fcLegend {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            border: 1px solid #204a5e;
+            border-radius: 10px;
+            background: rgba(5, 15, 20, .85);
+            backdrop-filter: blur(5px);
+            padding: 10px 12px;
+            font-size: .9rem;
+            display: none;
+        }
+        #fcLegend .row {
+            justify-content: flex-start;
+            gap: 10px;
+            margin: 3px 0;
+        }
+        .sw {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1px solid #2e4b5e;
+        }
+        #splash {
+            position: absolute;
+            inset: 0;
+            background: #0a0a0a;
+            z-index: 1000;
+            display: grid;
+            place-items: center;
+            text-align: center;
+        }
+        .splash-text {
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: #40c4ff;
+            text-shadow: 0 0 12px #40c4ff;
+            animation: pulse-text 1.8s infinite alternate;
+        }
+        .splash-sub {
+            font-size: 1.3rem;
+            margin-top: 12px;
+        }
+        @keyframes pulse-text {
+            from { text-shadow: 0 0 6px #40c4ff; }
+            to { text-shadow: 0 0 24px #40c4ff; }
+        }
+        #tutorial-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(5px);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            text-align: center;
+            padding: 24px;
+        }
+        .tutorial-message {
+            background: rgba(5, 15, 20, .8);
+            border: 2px solid #40c4ff;
+            border-radius: 14px;
+            padding: 24px 36px;
+            max-width: 600px;
+            font-size: 1.2rem;
+            line-height: 1.7;
+        }
+        .tutorial-message h2 {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            color: #ffd740;
+        }
+        .tutorial-buttons {
+            display: flex;
+            gap: 18px;
+        }
+        .tutorial-next {
+            background: #40c4ff;
+            color: #0a0a0a;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .tutorial-skip {
+            background: transparent;
+            color: #e0f7fa;
+            border: 1px solid #e0f7fa;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="splash">
+        <div>
+            <div class="splash-text">FrameForge</div>
+            <div class="splash-sub">Cinematic Webcam Studio</div>
+        </div>
+    </div>
+    
+    <div id="studio">
+        <div class="row">
+            <div class="group">
+                <div class="chip">FPS: <strong id="fpsVal">24</strong></div>
+                <div class="chip">
+                    <label><span>ISO</span>
+                        <select id="isoSelect">
+                            <option value="400">400 (Bright)</option>
+                            <option value="1600">1600 (Low Light)</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="chip">
+                    <label><span>ND Filter</span>
+                        <input id="ndRange" type="range" min="0" max="6" step="1" value="0" />
+                    </label>
+                    <span id="ndLabel">0.0 (0 stops)</span>
+                    <span id="ndSuggest" class="kbd">Auto: —</span>
+                    <button id="applyND" class="btn">Auto ND</button>
+                </div>
+                <div class="chip">
+                    <label><span>Profile</span>
+                        <select id="profileSelect">
+                            <option value="cube">Custom LUT (.cube)</option>
+                            <option value="cinematic">Cinematic</option>
+                            <option value="standard" selected>Standard</option>
+                            <option value="vibrant">Vibrant</option>
+                        </select>
+                    </label>
+                    <input id="cubeFile" type="file" accept=".cube" />
+                    <span id="lutName" class="kbd">No LUT</span>
+                </div>
+                <div class="chip">
+                    <label><span>Anamorphic</span>
+                        <select id="anamorphic">
+                            <option value="1">1.0×</option>
+                            <option value="1.33">1.33×</option>
+                            <option value="1.5">1.5×</option>
+                            <option value="2">2.0×</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="chip">
+                    <label><span>Aspect</span>
+                        <select id="aspect">
+                            <option value="2.35">2.35:1</option>
+                            <option value="1.85">1.85:1</option>
+                            <option value="1.78" selected>16:9</option>
+                            <option value="1.33">4:3</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <div class="group right">
+                <div class="chip">Battery: <span id="battery">—</span></div>
+                <div class="chip">
+                    <label><span>Save Mode</span>
+                        <select id="saveMode">
+                            <option value="Local" selected>Local (IndexedDB)</option>
+                            <option value="Download">Download</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="chip">
+                    <label style="display:flex;align-items:center;gap:10px">
+                        <input id="recordOverlays" class="chk" type="checkbox" />
+                        <span>Include Overlays</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div id="view">
+            <canvas id="glcanvas"></canvas>
+            <canvas id="glcanvasRec" style="display:none"></canvas>
+            <div id="fcLegend">
+                <div class="row"><div class="sw" style="background:#4a007a"></div><div>< 10% (Deep Shadows)</div></div>
+                <div class="row"><div class="sw" style="background:#0066cc"></div><div>10–25% (Shadows)</div></div>
+                <div class="row"><div class="sw" style="background:#00b7eb"></div><div>25–45% (Low Mids)</div></div>
+                <div class="row"><div class="sw" style="background:#00c853"></div><div>45–60% (Mids)</div></div>
+                <div class="row"><div class="sw" style="background:#ffca28"></div><div>60–80% (High Mids)</div></div>
+                <div class="row"><div class="sw" style="background:#ff5722"></div><div>80–95% (Highlights)</div></div>
+                <div class="row"><div class="sw" style="background:#d50000"></div><div>> 95% (Clipping)</div></div>
+            </div>
+            <div class="guides">
+                <div id="gateBox" class="gate"></div>
+                <div class="overlays">
+                    <div class="scope"><canvas id="waveCanvas"></canvas></div>
+                    <div class="scope"><canvas id="rgbCanvas"></canvas></div>
+                    <div class="scope"><canvas id="vectorCanvas"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="group">
+                <div class="chip hint">Preview includes grading; recording includes overlays only if “Include Overlays” is enabled.</div>
+                <div class="chip" style="flex-wrap:wrap">
+                    <strong>Exposure</strong>
+                    <label style="display:flex;align-items:center;gap:10px"><input id="expHiChk" class="chk" type="checkbox"/><span>Highlights</span></label>
+                    <label><span>Hi Thr</span><input id="expHiThr" type="range" min="0.6" max="1.0" step="0.01" value="0.95"/></label>
+                    <label style="display:flex;align-items:center;gap:10px"><input id="expLoChk" class="chk" type="checkbox"/><span>Shadows</span></label>
+                    <label><span>Lo Thr</span><input id="expLoThr" type="range" min="0.0" max="0.4" step="0.01" value="0.05"/></label>
+                    <label><span>Density</span><input id="expDen" type="range" min="5" max="15" step="1" value="8"/></label>
+                </div>
+                <div class="chip">
+                    <label style="display:flex;align-items:center;gap:10px"><input id="fcChk" class="chk" type="checkbox"/><span>Color Analysis</span></label>
+                    <label style="display:flex;align-items:center;gap:10px"><input id="fcLegendChk" class="chk" type="checkbox" checked/><span>Show Legend</span></label>
+                </div>
+                <div class="chip">
+                    <label style="display:flex;align-items:center;gap:10px"><input id="focusChk" class="chk" type="checkbox"/><span>Focus Assist</span></label>
+                    <label><span>Sensitivity</span><input id="focusSens" type="range" min="0.3" max="4" step="0.1" value="1.2"/></label>
+                </div>
+            </div>
+            <button id="record" class="btn" title="Record"></button>
+            <div class="group">
+                <div class="chip">
+                    <label><span>Resolution</span>
+                        <select id="resSelect">
+                            <option value="1280x720">720p</option>
+                            <option value="1920x1080" selected>1080p</option>
+                            <option value="2560x1440">1440p</option>
+                            <option value="3840x2160">4K</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="chip">
+                    <label><span>FPS</span>
+                        <select id="fpsSelect">
+                            <option>24</option>
+                            <option selected>30</option>
+                            <option>60</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <video id="src" playsinline muted style="display:none"></video>
+
+    <div id="tutorial-overlay">
+        <div class="tutorial-message">
+            <h2>Welcome to FrameForge!</h2>
+            <p>Unleash your inner filmmaker.</p>
+            <p>Let's craft stunning visuals.</p>
+        </div>
+        <div class="tutorial-buttons">
+            <button class="tutorial-next" data-step="1">Begin</button>
+            <button class="tutorial-skip">Skip</button>
+        </div>
+    </div>
+
+    <script>
+    const $ = s => document.querySelector(s);
+    const clamp01 = x => Math.min(1, Math.max(0, x));
+
+    const videoEl = $('#src');
+    const cPrev = $('#glcanvas');
+    const cRec = $('#glcanvasRec');
+    const waveCanvas = $('#waveCanvas'), rgbCanvas = $('#rgbCanvas'), vectorCanvas = $('#vectorCanvas');
+    const fcLegend = $('#fcLegend');
+    const ndRange = $('#ndRange'), ndLabel = $('#ndLabel'), ndSuggest = $('#ndSuggest'), applyND = $('#applyND');
+    const profileSelect = $('#profileSelect'), cubeFile = $('#cubeFile'), lutName = $('#lutName');
+    const isoSelect = $('#isoSelect'), fpsSel = $('#fpsSelect'), resSel = $('#resSelect'), fpsVal = $('#fpsVal');
+    const recordBtn = $('#record'), batteryEl = $('#battery');
+    const anamorphicSel = $('#anamorphic'), aspectSel = $('#aspect'), gateBox = $('#gateBox');
+    const saveModeSel = $('#saveMode'), recordOverlays = $('#recordOverlays');
+    const expHiChk = $('#expHiChk'), expHiThr = $('#expHiThr');
+    const expLoChk = $('#expLoChk'), expLoThr = $('#expLoThr');
+    const expDen = $('#expDen');
+    const fcChk = $('#fcChk'), fcLegendChk = $('#fcLegendChk');
+    const focusChk = $('#focusChk'), focusSens = $('#focusSens');
+    const splashScreen = $('#splash');
+    const tutorialOverlay = $('#tutorial-overlay');
+    const tutorialMessage = $('.tutorial-message');
+    const tutorialButtons = $('.tutorial-buttons');
+
+    const tutorialSteps = [
+        {
+            title: 'Color Analysis',
+            message: 'Enable this to monitor exposure levels and ensure your footage is perfectly balanced.',
+            target: fcChk
+        },
+        {
+            title: 'Cinematic Profiles',
+            message: 'Apply professional-grade color profiles or load custom LUTs for a unique look.',
+            target: profileSelect
+        },
+        {
+            title: 'Focus Assist',
+            message: 'Highlight sharp areas to ensure your subject is always in perfect focus.',
+            target: focusChk
+        },
+        {
+            title: 'Anamorphic Magic',
+            message: 'Create a widescreen cinematic effect with anamorphic desqueeze options.',
+            target: anamorphicSel
+        },
+        {
+            title: 'Ready to Create',
+            message: 'You\'re all set to produce stunning visuals. Lights, camera, action!',
+            target: null
+        }
+    ];
+    let currentStep = -1;
+
+    function buildGL(canvas) {
+        const gl = canvas.getContext('webgl', { preserveDrawingBuffer: false });
+        if (!gl) { alert('WebGL not supported'); throw new Error('No WebGL'); }
+
+        const vert = `
+            attribute vec2 a_pos; attribute vec2 a_uv;
+            varying vec2 v_uv; void main(){ v_uv=a_uv; gl_Position=vec4(a_pos,0.0,1.0); }
+        `;
+        const frag = `
+            precision mediump float;
+            uniform sampler2D u_tex, u_lutTex;
+            uniform float u_exposure, u_lutSize, u_anamorphic;
+            uniform int u_lutMode;
+            uniform vec2 u_texel;
+            uniform int u_expHi, u_expLo, u_falseColor, u_focus;
+            uniform float u_expHiThr, u_expLoThr, u_expDen, u_focusSens;
+            varying vec2 v_uv;
+
+            vec3 toLinear(vec3 c){ return pow(c, vec3(2.2)); }
+            vec3 toDisplay(vec3 c){ return pow(c, vec3(1.0/2.2)); }
+            float luma(vec3 c){ return dot(c, vec3(0.2126,0.7152,0.0722)); }
+
+            vec3 cinematic(vec3 x){ x=clamp(x,0.0,1.0); return pow(x,vec3(0.9))*1.1; }
+            vec3 standard(vec3 x){ x=clamp(x,0.0,1.0); return x; }
+            vec3 vibrant(vec3 x){ x=clamp(x,0.0,1.0); vec3 y=mix(x,pow(x,vec3(0.85)),0.5); return clamp(y*1.2,0.0,1.0); }
+
+            vec3 sampleLUTCube(vec3 col){
+                float N=u_lutSize, NM1=N-1.0; vec3 c=clamp(col,0.0,1.0)*NM1;
+                float r=c.r,g=c.g,b=c.b; float b0=floor(b), b1=min(b0+1.0,NM1), f=b-b0;
+                float width=N*N;
+                vec2 uv0=vec2((r + b0*N + 0.5)/width, (g + 0.5)/N);
+                vec2 uv1=vec2((r + b1*N + 0.5)/width, (g + 0.5)/N);
+                vec3 lo=texture2D(u_lutTex,uv0).rgb, hi=texture2D(u_lutTex,uv1).rgb;
+                return mix(lo,hi,f);
+            }
+
+            vec3 falseColor(float l){
+                if(l<0.10) return vec3(0.29,0.00,0.48);
+                if(l<0.25) return vec3(0.00,0.40,0.80);
+                if(l<0.45) return vec3(0.00,0.72,0.92);
+                if(l<0.60) return vec3(0.00,0.80,0.33);
+                if(l<0.80) return vec3(1.00,0.80,0.16);
+                if(l<0.95) return vec3(1.00,0.34,0.13);
+                return vec3(0.83,0.00,0.00);
+            }
+
+            void main(){
+                vec2 uv=v_uv; uv.x=0.5+(uv.x-0.5)/max(u_anamorphic,1.0);
+                vec4 s=texture2D(u_tex,uv);
+                vec3 lin=toLinear(s.rgb)*u_exposure;
+                vec3 graded;
+                if(u_lutMode==0) graded=sampleLUTCube(lin);
+                else if(u_lutMode==1) graded=cinematic(lin);
+                else if(u_lutMode==2) graded=standard(lin);
+                else graded=vibrant(lin);
+                vec3 outCol=toDisplay(graded);
+                float Y=luma(outCol);
+                if(u_falseColor==1){ outCol=mix(outCol, falseColor(Y), 0.9); }
+                float stripe=0.0;
+                float pat=fract((gl_FragCoord.x + gl_FragCoord.y) * (u_expDen/100.0));
+                float band=step(0.5, pat);
+                if(u_expHi==1 && Y>=u_expHiThr) stripe=1.0;
+                if(u_expLo==1 && Y<=u_expLoThr) stripe=1.0;
+                if(stripe>0.5){ outCol=mix(outCol, vec3(0.0), band*0.7); }
+                if(u_focus==1){
+                    vec2 t=u_texel;
+                    float tl=luma(texture2D(u_tex,uv+vec2(-t.x,-t.y)).rgb);
+                    float tc=luma(texture2D(u_tex,uv+vec2(0.0,-t.y)).rgb);
+                    float tr=luma(texture2D(u_tex,uv+vec2(t.x,-t.y)).rgb);
+                    float ml=luma(texture2D(u_tex,uv+vec2(-t.x,0.0)).rgb);
+                    float mr=luma(texture2D(u_tex,uv+vec2(t.x,0.0)).rgb);
+                    float bl=luma(texture2D(u_tex,uv+vec2(-t.x,t.y)).rgb);
+                    float bc=luma(texture2D(u_tex,uv+vec2(0.0,t.y)).rgb);
+                    float br=luma(texture2D(u_tex,uv+vec2(t.x,t.y)).rgb);
+                    float gx=(tr+2.0*mr+br)-(tl+2.0*ml+bl);
+                    float gy=(bl+2.0*bc+br)-(tl+2.0*tc+tr);
+                    float g=sqrt(gx*gx+gy*gy);
+                    float e=smoothstep(0.1*u_focusSens, 0.3*u_focusSens, g);
+                    vec3 pk=vec3(0.2,1.0,0.4);
+                    outCol=mix(outCol, pk, e*0.8);
+                }
+                gl_FragColor=vec4(outCol,1.0);
+            }
+        `;
+
+        function comp(type, src) {
+            const sh = gl.createShader(type);
+            gl.shaderSource(sh, src);
+            gl.compileShader(sh);
+            if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+            return sh;
+        }
+        const vs = comp(gl.VERTEX_SHADER, vert), fs = comp(gl.FRAGMENT_SHADER, frag);
+        const prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+        gl.useProgram(prog);
+        const quad = new Float32Array([-1,-1,0,0, 1,-1,1,0, -1,1,0,1, 1,1,1,1]);
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+        const a_pos = gl.getAttribLocation(prog, 'a_pos'), a_uv = gl.getAttribLocation(prog, 'a_uv');
+        gl.enableVertexAttribArray(a_pos);
+        gl.enableVertexAttribArray(a_uv);
+        gl.vertexAttribPointer(a_pos, 2, gl.FLOAT, false, 16, 0);
+        gl.vertexAttribPointer(a_uv, 2, gl.FLOAT, false, 16, 8);
+        const texVideo = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texVideo);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        const texLUT = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texLUT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        const U = name => gl.getUniformLocation(prog, name);
+        const uni = {
+            u_tex: U('u_tex'), u_lutTex: U('u_lutTex'), u_exposure: U('u_exposure'), u_lutSize: U('u_lutSize'),
+            u_lutMode: U('u_lutMode'), u_anamorphic: U('u_anamorphic'), u_texel: U('u_texel'),
+            u_expHi: U('u_expHi'), u_expLo: U('u_expLo'), u_falseColor: U('u_falseColor'), u_focus: U('u_focus'),
+            u_expHiThr: U('u_expHiThr'), u_expLoThr: U('u_expLoThr'), u_expDen: U('u_expDen'), u_focusSens: U('u_focusSens')
+        };
+        gl.uniform1i(uni.u_tex, 0);
+        gl.uniform1i(uni.u_lutTex, 1);
+        return { gl, prog, texVideo, texLUT, uni };
+    }
+
+    const Pprev = buildGL(cPrev);
+    const Prec = buildGL(cRec);
+
+    let targetW = 1920, targetH = 1080, targetFPS = 30;
+    function resizeCanvases() {
+        const [w, h] = resSel.value.split('x').map(n => parseInt(n, 10));
+        targetW = w;
+        targetH = h;
+        const rect = $('#view').getBoundingClientRect();
+        [cPrev, cRec].forEach(c => {
+            c.width = targetW;
+            c.height = targetH;
+            c.style.width = rect.width + 'px';
+            c.style.height = rect.height + 'px';
+        });
+        [Pprev.gl, Prec.gl].forEach(gl => gl.viewport(0, 0, targetW, targetH));
+        updateGateBox();
+    }
+
+    function updateGateBox() {
+        const aspect = parseFloat(aspectSel.value);
+        const rect = $('#view').getBoundingClientRect();
+        const box = gateBox.style;
+        const vw = rect.width, vh = rect.height, va = vw / vh;
+        let bw, bh;
+        if (va > aspect) {
+            bh = vh;
+            bw = bh * aspect;
+        } else {
+            bw = vw;
+            bh = bw / aspect;
+        }
+        box.width = bw + 'px';
+        box.height = bh + 'px';
+        box.top = (vh - bh) / 2 + 'px';
+    }
+
+    async function initBattery() {
+        try {
+            if (navigator.getBattery) {
+                const b = await navigator.getBattery();
+                const setB = () => batteryEl.textContent = Math.round(b.level * 100) + '%';
+                setB();
+                b.addEventListener('levelchange', setB);
+            } else {
+                batteryEl.textContent = '—';
+            }
+        } catch {
+            batteryEl.textContent = '—';
+        }
+    }
+
+    async function initCamera() {
+        targetFPS = parseFloat(fpsSel.value);
+        fpsVal.textContent = fpsSel.value;
+        const cons = { audio: true, video: { width: { ideal: targetW }, height: { ideal: targetH }, frameRate: { ideal: targetFPS, max: targetFPS } } };
+        const stream = await navigator.mediaDevices.getUserMedia(cons);
+        videoEl.srcObject = stream;
+        await videoEl.play();
+        [Pprev, Prec].forEach(P => {
+            P.gl.useProgram(P.prog);
+            P.gl.uniform2f(P.uni.u_texel, 1.0 / videoEl.videoWidth, 1.0 / videoEl.videoHeight);
+        });
+    }
+
+    function ndStopsFromSlider(v) { return parseInt(v, 10); }
+    function exposureFromStops(stops) { return Math.pow(0.5, stops); }
+    function updateNDLabel() {
+        const s = ndStopsFromSlider(ndRange.value);
+        ndLabel.textContent = (s * 0.3).toFixed(1) + ' (' + s + ' stops)';
+    }
+
+    let idb;
+    const DB = 'frameforge_db', STORE_CLIPS = 'clips', STORE_LUTS = 'luts', STORE_PREFS = 'prefs';
+    function idbOpen() {
+        return new Promise((res, rej) => {
+            const req = indexedDB.open(DB, 1);
+            req.onupgradeneeded = e => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains(STORE_CLIPS)) db.createObjectStore(STORE_CLIPS, { keyPath: 'id' });
+                if (!db.objectStoreNames.contains(STORE_LUTS)) db.createObjectStore(STORE_LUTS, { keyPath: 'id' });
+                if (!db.objectStoreNames.contains(STORE_PREFS)) db.createObjectStore(STORE_PREFS, { keyPath: 'key' });
+            };
+            req.onsuccess = () => { idb = req.result; res(); };
+            req.onerror = () => rej(req.error);
+        });
+    }
+    function idbPut(store, obj) {
+        return new Promise((res, rej) => {
+            const tx = idb.transaction(store, 'readwrite');
+            tx.objectStore(store).put(obj);
+            tx.oncomplete = () => res();
+            tx.onerror = () => rej(tx.error);
+        });
+    }
+    function idbGet(store, key) {
+        return new Promise((res, rej) => {
+            const tx = idb.transaction(store, 'readonly');
+            const req = tx.objectStore(store).get(key);
+            req.onsuccess = () => res(req.result || null); // Corrected: Use req.result
+            req.onerror = () => rej(req.error);
+        });
+    }
+    async function setPref(key, value) { await idbPut(STORE_PREFS, { key, value }); }
+    async function getPref(key) { 
+        const result = await idbGet(STORE_PREFS, key); 
+        return result ? result.value : null; 
+    }
+    async function saveLUT(id, size, packed, name) {
+        await idbPut(STORE_LUTS, { id, size, packed, name, saved: new Date().toISOString() });
+        await setPref('lastLUT', id);
+    }
+    async function loadLastLUT() {
+        const last = await getPref('lastLUT');
+        if (!last) return null;
+        return await idbGet(STORE_LUTS, last);
+    }
+
+    function parseCube(txt) {
+        const lines = txt.split(/\r?\n/);
+        let size = 0;
+        const table = [];
+        for (const raw of lines) {
+            const line = raw.trim();
+            if (!line || line.startsWith('#')) continue;
+            const up = line.toUpperCase();
+            if (up.startsWith('LUT_3D_SIZE')) size = parseInt(line.split(/\s+/)[1], 10);
+            else if (!up.startsWith('DOMAIN_')) {
+                const v = line.split(/\s+/).map(Number);
+                if (v.length === 3) table.push(v);
+            }
+        }
+        if (!size || table.length !== size * size * size) throw new Error('Invalid .cube');
+        const out = new Float32Array(size * size * size * 3);
+        for (let i = 0; i < table.length; i++) {
+            const [r, g, b] = table[i];
+            out[i * 3] = r;
+            out[i * 3 + 1] = g;
+            out[i * 3 + 2] = b;
+        }
+        return { size, data: out };
+    }
+    function packLUTStrip(size, floatRGB) {
+        const width = size * size, height = size, buf = new Uint8Array(width * height * 4);
+        let p = 0;
+        for (let b = 0; b < size; b++) {
+            for (let g = 0; g < size; g++) {
+                for (let r = 0; r < size; r++) {
+                    const idx = ((b * size + g) * size + r) * 3;
+                    const R = Math.round(clamp01(floatRGB[idx]) * 255);
+                    const G = Math.round(clamp01(floatRGB[idx + 1]) * 255);
+                    const B = Math.round(clamp01(floatRGB[idx + 2]) * 255);
+                    buf[p++] = R;
+                    buf[p++] = G;
+                    buf[p++] = B;
+                    buf[p++] = 255;
+                }
+            }
+        }
+        return buf;
+    }
+    function uploadPackedLUT(P, size, packed) {
+        P.gl.activeTexture(P.gl.TEXTURE1);
+        P.gl.bindTexture(P.gl.TEXTURE_2D, P.texLUT);
+        P.gl.texImage2D(P.gl.TEXTURE_2D, 0, P.gl.RGBA, size * size, size, 0, P.gl.RGBA, P.gl.UNSIGNED_BYTE, packed);
+    }
+
+    let hasCube = false, lutSize = 33;
+    cubeFile.addEventListener('change', async () => {
+        const f = cubeFile.files[0];
+        if (!f) return;
+        const txt = await f.text();
+        try {
+            const { size, data } = parseCube(txt);
+            const packed = packLUTStrip(size, data);
+            [Pprev, Prec].forEach(P => uploadPackedLUT(P, size, packed));
+            hasCube = true;
+            lutSize = size;
+            lutName.textContent = `${f.name} (${size}³)`;
+            profileSelect.value = 'cube';
+            await idbOpen();
+            await saveLUT(f.name, size, packed, f.name);
+        } catch (e) {
+            alert('LUT load error: ' + e.message);
+            hasCube = false;
+            lutName.textContent = 'No LUT';
+        }
+    });
+
+    const scopeW = 220, scopeH = 130;
+    [waveCanvas, rgbCanvas, vectorCanvas].forEach(c => { c.width = scopeW; c.height = scopeH; });
+    const sampleCanvas = document.createElement('canvas');
+    sampleCanvas.width = 256;
+    sampleCanvas.height = 144;
+    const sctx = sampleCanvas.getContext('2d');
+    function drawScopes() {
+        sctx.drawImage(cPrev, 0, 0, sampleCanvas.width, sampleCanvas.height);
+        const img = sctx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
+        const wctx = waveCanvas.getContext('2d');
+        wctx.fillStyle = 'rgba(5,15,20,0.9)';
+        wctx.fillRect(0, 0, scopeW, scopeH);
+        wctx.strokeStyle = '#40c4ff';
+        wctx.beginPath();
+        const cols = scopeW;
+        for (let x = 0; x < cols; x++) {
+            const sx = Math.floor(x / cols * sampleCanvas.width);
+            let acc = 0, n = 0;
+            for (let y = 0; y < sampleCanvas.height; y++) {
+                const i = (y * sampleCanvas.width + sx) * 4;
+                const l = 0.2126 * img[i] + 0.7152 * img[i + 1] + 0.0722 * img[i + 2];
+                acc += l;
+                n++;
+            }
+            const v = (acc / n) / 255, yy = scopeH - Math.floor(v * scopeH);
+            if (x === 0) wctx.moveTo(x, yy); else wctx.lineTo(x, yy);
+        }
+        wctx.stroke();
+        const pctx = rgbCanvas.getContext('2d');
+        pctx.fillStyle = 'rgba(5,15,20,0.9)';
+        pctx.fillRect(0, 0, scopeW, scopeH);
+        const bandW = Math.floor(scopeW / 3);
+        const chans = [
+            { off: 0, color: '#ff6e40', idx: 0 },
+            { off: bandW, color: '#40c4ff', idx: 1 },
+            { off: bandW * 2, color: '#ffd740', idx: 2 }
+        ];
+        chans.forEach(ch => {
+            pctx.strokeStyle = ch.color;
+            pctx.beginPath();
+            for (let x = 0; x < bandW; x++) {
+                const sx = Math.floor(x / bandW * sampleCanvas.width);
+                let acc = 0, n = 0;
+                for (let y = 0; y < sampleCanvas.height; y++) {
+                    const i = (y * sampleCanvas.width + sx) * 4;
+                    acc += img[i + ch.idx];
+                    n++;
+                }
+                const v = (acc / n) / 255, yy = scopeH - Math.floor(v * scopeH);
+                if (x === 0) pctx.moveTo(ch.off + x, yy); else pctx.lineTo(ch.off + x, yy);
+            }
+            pctx.stroke();
+        });
+        const vctx = vectorCanvas.getContext('2d');
+        vctx.fillStyle = 'rgba(5,15,20,0.9)';
+        vctx.fillRect(0, 0, scopeW, scopeH);
+        const cx = scopeW / 2, cy = scopeH / 2, rad = Math.min(cx, cy) - 2;
+        vctx.strokeStyle = '#1e4a5a';
+        vctx.beginPath();
+        vctx.arc(cx, cy, rad, 0, Math.PI * 2);
+        vctx.stroke();
+        vctx.fillStyle = 'rgba(64,196,255,0.8)';
+        const step = 4;
+        for (let y = 0; y < sampleCanvas.height; y += step) {
+            for (let x = 0; x < sampleCanvas.width; x += step) {
+                const i = (y * sampleCanvas.width + x) * 4;
+                const r = img[i] / 255, g = img[i + 1] / 255, b = img[i + 2] / 255;
+                const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+                let h = 0;
+                if (d !== 0) {
+                    if (mx === r) h = ((g - b) / d) % 6;
+                    else if (mx === g) h = (b - r) / d + 2;
+                    else h = (r - g) / d + 4;
+                    h *= 60;
+                    if (h < 0) h += 360;
+                }
+                const s = mx === 0 ? 0 : d / mx;
+                const ang = h * Math.PI / 180, rr = s * rad;
+                const px = cx + Math.cos(ang) * rr, py = cy - Math.sin(ang) * rr;
+                vctx.fillRect(px, py, 1, 1);
+            }
+        }
+        const hist = new Uint32Array(256);
+        for (let i = 0; i < img.length; i += 4) {
+            const l = Math.round(0.2126 * img[i] + 0.7152 * img[i + 1] + 0.0722 * img[i + 2]);
+            hist[l]++;
+        }
+        let tot = 0;
+        for (let i = 0; i < 256; i++) tot += hist[i];
+        let cum = 0, med = 0;
+        for (let i = 0; i < 256; i++) {
+            cum += hist[i];
+            if (cum >= tot / 2) { med = i; break; }
+        }
+        const median = med / 255, target = 0.5;
+        let stops = 0;
+        if (median > target) stops = Math.log(median / target) / Math.log(2);
+        const sug = Math.min(6, Math.max(0, Math.round(stops)));
+        ndSuggest.textContent = sug > 0 ? `Auto: ND ${(sug * 0.3).toFixed(1)} (${sug} st)` : 'Auto: ND 0.0';
+    }
+
+    function renderPass(P, opts) {
+        const { gl, texVideo, uni } = P;
+        if (videoEl.readyState >= 2) {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, texVideo);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoEl);
+        }
+        gl.useProgram(P.prog);
+        gl.uniform1f(uni.u_exposure, opts.exposure);
+        gl.uniform1f(uni.u_lutSize, opts.lutSize);
+        gl.uniform1i(uni.u_lutMode, opts.lutMode);
+        gl.uniform1f(uni.u_anamorphic, opts.anamorphic);
+        gl.uniform2f(uni.u_texel, 1.0 / videoEl.videoWidth, 1.0 / videoEl.videoHeight);
+        gl.uniform1i(uni.u_falseColor, opts.falseColor ? 1 : 0);
+        gl.uniform1i(uni.u_expHi, opts.expHi ? 1 : 0);
+        gl.uniform1i(uni.u_expLo, opts.expLo ? 1 : 0);
+        gl.uniform1f(uni.u_expHiThr, opts.expHiThr);
+        gl.uniform1f(uni.u_expLoThr, opts.expLoThr);
+        gl.uniform1f(uni.u_expDen, opts.expDen);
+        gl.uniform1i(uni.u_focus, opts.focus ? 1 : 0);
+        gl.uniform1f(uni.u_focusSens, opts.focusSens);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, P.texLUT);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    function lutModeIndex() {
+        const v = profileSelect.value;
+        if (v === 'cube' && hasCube) return 0;
+        if (v === 'cinematic') return 1;
+        if (v === 'standard') return 2;
+        return 3;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const s = ndStopsFromSlider(ndRange.value), exposure = exposureFromStops(s);
+        const optsPreview = {
+            exposure, lutSize, lutMode: lutModeIndex(), anamorphic: parseFloat(anamorphicSel.value),
+            falseColor: fcChk.checked, expHi: expHiChk.checked, expLo: expLoChk.checked,
+            expHiThr: parseFloat(expHiThr.value), expLoThr: parseFloat(expLoThr.value),
+            expDen: parseFloat(expDen.value), focus: focusChk.checked, focusSens: parseFloat(focusSens.value)
+        };
+        const includeOverlaysInRecord = recordOverlays.checked;
+        const optsRecord = {
+            ...optsPreview,
+            falseColor: includeOverlaysInRecord ? optsPreview.falseColor : false,
+            expHi: includeOverlaysInRecord ? optsPreview.expHi : false,
+            expLo: includeOverlaysInRecord ? optsPreview.expLo : false,
+            focus: false
+        };
+        ndLabel.textContent = (s * 0.3).toFixed(1) + ' (' + s + ' stops)';
+        renderPass(Pprev, optsPreview);
+        renderPass(Prec, optsRecord);
+        if (!animate._last || performance.now() - animate._last > 120) {
+            drawScopes();
+            animate._last = performance.now();
+        }
+        fcLegend.style.display = (fcChk.checked && fcLegendChk.checked) ? 'block' : 'none';
+    }
+
+    let mediaRecorder, chunks = [];
+    function pickMime() {
+        const prefs = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        for (const m of prefs) {
+            if (MediaRecorder.isTypeSupported(m)) return m;
+        }
+        return '';
+    }
+    function downloadBlob(blob, name) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    function buildSidecar(base, blob) {
+        const [w, h] = resSel.value.split('x').map(Number);
+        return {
+            id: base,
+            created: new Date().toISOString(),
+            iso: parseInt(isoSelect.value, 10),
+            nd_stops: ndStopsFromSlider(ndRange.value),
+            nd_density: ndStopsFromSlider(ndRange.value) * 0.3,
+            profile: profileSelect.value,
+            cube_loaded: hasCube ? lutName.textContent : null,
+            fps: parseFloat(fpsSel.value),
+            resolution: { width: w, height: h },
+            anamorphic: parseFloat(anamorphicSel.value),
+            aspect: parseFloat(aspectSel.value),
+            overlays: { record_overlays: recordOverlays.checked, fc: fcChk.checked, exposure: { hi: expHiChk.checked, lo: expLoChk.checked } },
+            save_mode: saveModeSel.value,
+            file: { mime: blob.type, bytes: blob.size }
+        };
+    }
+    async function idbPutClip(id, blob, json) {
+        if (!idb) await idbOpen();
+        return new Promise((res, rej) => {
+            const tx = idb.transaction('clips', 'readwrite');
+            tx.objectStore('clips').put({ id, video: blob, meta: json });
+            tx.oncomplete = () => res();
+            tx.onerror = () => rej(tx.error);
+        });
+    }
+    async function startRecording() {
+        const srcCanvas = recordOverlays.checked ? cPrev : cRec;
+        const stream = srcCanvas.captureStream(targetFPS || 30);
+        const mime = pickMime();
+        mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+        chunks = [];
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const ts = new Date().toISOString().replace(/[:.]/g, '-');
+            const base = `FrameForge_${ts}`;
+            const json = buildSidecar(base, blob);
+            if (saveModeSel.value === 'Local') {
+                await idbOpen();
+                await idbPutClip(base, blob, json);
+            }
+            downloadBlob(blob, `${base}.webm`);
+            downloadBlob(new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' }), `${base}.json`);
+        };
+        mediaRecorder.start();
+        recordBtn.classList.add('recording');
+    }
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        recordBtn.classList.remove('recording');
+    }
+
+    fpsSel.addEventListener('change', async () => {
+        try {
+            const old = videoEl.srcObject;
+            if (old) old.getTracks().forEach(t => t.stop());
+        } catch {}
+        await initCamera();
+    });
+    resSel.addEventListener('change', resizeCanvases);
+    aspectSel.addEventListener('change', updateGateBox);
+    ndRange.addEventListener('input', updateNDLabel);
+    applyND.addEventListener('click', () => {
+        const m = ndSuggest.textContent.match(/ND\s([\d.]+)/);
+        if (m) {
+            const stops = Math.round(parseFloat(m[1]) / 0.3);
+            ndRange.value = String(Math.min(6, Math.max(0, stops)));
+            updateNDLabel();
+        }
+    });
+    recordBtn.addEventListener('click', () => {
+        if (!mediaRecorder || mediaRecorder.state === 'inactive') startRecording();
+        else stopRecording();
+    });
+
+    function showTutorialStep(stepIndex) {
+        if (stepIndex >= tutorialSteps.length) {
+            tutorialOverlay.style.display = 'none';
+            return;
+        }
+        const step = tutorialSteps[stepIndex];
+        tutorialMessage.querySelector('h2').textContent = step.title;
+        tutorialMessage.querySelector('p').textContent = step.message;
+        if (currentStep >= 0 && tutorialSteps[currentStep].target) {
+            tutorialSteps[currentStep].target.style.boxShadow = '';
+            tutorialSteps[currentStep].target.style.zIndex = '';
+        }
+        if (step.target) {
+            step.target.style.boxShadow = '0 0 12px 6px rgba(64, 196, 255, 0.9)';
+            step.target.style.zIndex = '201';
+        }
+        const nextBtn = tutorialButtons.querySelector('.tutorial-next');
+        nextBtn.textContent = stepIndex === tutorialSteps.length - 1 ? 'Finish' : 'Next';
+        currentStep = stepIndex;
+        tutorialOverlay.style.display = 'flex';
+    }
+
+    tutorialButtons.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tutorial-next')) {
+            showTutorialStep(currentStep + 1);
+        } else if (e.target.classList.contains('tutorial-skip')) {
+            tutorialOverlay.style.display = 'none';
+        }
+    });
+
+    (async function boot() {
+        await idbOpen();
+        await initBattery();
+        resizeCanvases();
+        await initCamera();
+        try {
+            const rec = await loadLastLUT();
+            if (rec && rec.packed && rec.size) {
+                const packed = rec.packed instanceof Uint8Array ? rec.packed : new Uint8Array(rec.packed);
+                [Pprev, Prec].forEach(P => uploadPackedLUT(P, rec.size, packed));
+                hasCube = true;
+                lutSize = rec.size;
+                profileSelect.value = 'cube';
+                lutName.textContent = `${rec.name || rec.id} (${rec.size}³)`;
+            }
+        } catch (e) {
+            console.warn('No LUT preload:', e);
+        }
+        animate();
+        setTimeout(() => {
+            splashScreen.style.display = 'none';
+            showTutorialStep(0);
+        }, 1500);
+    })();
+    </script>
+</body>
+</html>
